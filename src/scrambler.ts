@@ -1,4 +1,5 @@
 import { SOLVED } from './cube';
+import { createScrambleAnimation } from './scramble-animation';
 import { ScrambleGuide } from './scramble-guide';
 const descriptions: Record<string, string> = { U: 'top (white centre)', R: 'right (red centre)', F: 'front (green centre)', D: 'bottom (yellow centre)', L: 'left (orange centre)', B: 'back (blue centre)' };
 export function setupScrambler(options: { blockTimer(blocked: boolean): void; timerRunning(): boolean }) {
@@ -10,6 +11,9 @@ export function setupScrambler(options: { blockTimer(blocked: boolean): void; ti
   let loading = false;
   let request: AbortController | undefined;
   let notice = '';
+  const animation = createScrambleAnimation(el('scramble-cube'));
+  const refreshAnimation = () => animation.update(state ?? SOLVED, guide?.next, location.hash === '#scramble');
+  window.addEventListener('hashchange', refreshAnimation);
   function render() {
     generate.disabled = loading || !!guide && !guide.complete || state !== SOLVED || options.timerRunning();
     cancel.hidden = !loading && (!guide || guide.complete);
@@ -26,6 +30,8 @@ export function setupScrambler(options: { blockTimer(blocked: boolean): void; ti
     el('scramble-next').textContent = guide?.next ?? (guide?.complete ? 'Ready' : '—');
     el('scramble-progress').textContent = guide ? `${guide.index} / ${guide.moves.length} moves verified` : '';
     const next = guide?.next;
+    refreshAnimation();
+    el('scramble-cube-caption').textContent = next ? `${guide?.correcting ? 'Correction' : 'Next move'}: ${next} · White on top · Green facing you` : 'White on top · Green facing you · Red on your right';
     el('scramble-instruction').textContent = next ? `${guide?.correcting ? 'Undo the incorrect turn: ' : ''}Turn the ${descriptions[next[0]]} face ${next.endsWith('2') ? '180° (two quarter turns)' : next.endsWith("'") ? '90° anticlockwise' : '90° clockwise'}, looking directly at that face.` : '';
     el('scramble-message').textContent = loading ? 'Generating a 3×3 scramble with TNoodle…' : notice || (guide?.complete ? 'Scramble complete. Start the timer when ready.' : guide ? guide.correcting ? 'Correct the extra turn before continuing.' : 'Follow the highlighted move. Keep white on top and green facing you.' : !state ? 'Connect your cube to begin.' : options.timerRunning() ? 'Stop the timer before generating a scramble.' : state !== SOLVED ? 'Solve your physical cube before generating a scramble.' : 'Ready to generate a TNoodle 3×3 scramble.');
   }
@@ -61,6 +67,6 @@ export function setupScrambler(options: { blockTimer(blocked: boolean): void; ti
     cancel: () => stop('Scramble cancelled by cube reset.'),
     startSolve() { if (guide?.complete) { guide = undefined; notice = ''; } render(); },
     refresh: render,
-    dispose() { request?.abort(); },
+    dispose() { request?.abort(); animation.dispose(); window.removeEventListener('hashchange', refreshAnimation); },
   };
 }
